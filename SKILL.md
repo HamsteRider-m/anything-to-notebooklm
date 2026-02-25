@@ -9,21 +9,24 @@ homepage: https://github.com/joeseesun/anything-to-notebooklm
 
 自动从多种来源获取内容，上传到 NotebookLM，并根据自然语言指令生成播客、PPT、思维导图等多种格式。
 
+## 定位与入口策略（重要）
+
+- 默认入口：对外优先使用 `anything-to-notebooklm`，适合“给素材/链接/关键词，直接产出内容”的自然语言请求。
+- 边界分工：本 Skill 负责内容采集、转换、清洗、意图路由；NotebookLM 侧的创建/上传/生成/等待/下载全部委托给 `notebooklm` Skill。
+- 高级直连：当用户明确要求 CLI 细节、JSON 输出、并行控制、research/fulltext/language 等高级能力时，直接切换到 `notebooklm` Skill。
+- 维护原则：本 Skill 不重复维护 NotebookLM 的完整命令教学，避免与上游 `notebooklm` Skill 漂移。
+
 ## Quick Reference
 
-| 任务 | 命令/工具 |
+| 任务 | 执行方式 |
 |------|----------|
-| 抓取微信文章 | MCP `read_weixin_article` |
-| 提取B站字幕 | `python -m bilibili_subtitle "URL" -o /tmp` |
-| 转换文档 | `markitdown /path/to/file -o /tmp/output.md` |
-| 创建笔记本 | `notebooklm create "Title" --json` |
-| 上传文件 | `notebooklm source add file.txt --notebook <id> --wait` |
-| 上传URL | `notebooklm source add <URL> --notebook <id>` |
-| 生成播客 | `notebooklm generate audio` |
-| 生成PPT | `notebooklm generate slide-deck` |
-| 生成思维导图 | `notebooklm generate mind-map` |
-| 等待生成 | `notebooklm artifact wait <task_id>` |
-| 下载文件 | `notebooklm download <type> ./output` |
+| 抓取微信文章 | 本 Skill 调用 MCP `read_weixin_article` |
+| 提取 B 站字幕 | 本 Skill 调用 `bilibili-subtitle` |
+| 转换文档/OCR/转录 | 本 Skill 调用 `markitdown` |
+| 创建 notebook / 上传 source | 委托 `notebooklm` Skill |
+| 生成 audio/video/slide/report/mind-map 等 | 委托 `notebooklm` Skill |
+| 等待任务与下载产物 | 委托 `notebooklm` Skill |
+| JSON/并行/research/fulltext/language | 直接使用 `notebooklm` Skill（高级模式） |
 
 ## 支持的内容源
 
@@ -96,14 +99,13 @@ MCP 服务器已安装在：`~/.claude/skills/anything-to-notebooklm/wexin-read-
 
 **配置后需要重启 Claude Code。**
 
-### 2. notebooklm 认证
+### 2. NotebookLM 认证
 
-首次使用前必须认证：
+首次使用前，委托 `notebooklm` Skill 执行认证流程：
 
-```bash
-notebooklm login
-notebooklm list  # 验证认证成功
-```
+1. 运行认证检查（auth check）
+2. 如未登录或已过期，执行登录（login）
+3. 返回认证状态给本 Skill，确认后再继续上传/生成
 
 ## 触发方式
 
@@ -140,19 +142,19 @@ notebooklm list  # 验证认证成功
 ### 混合使用
 - "把这篇文章、这个视频和这个PDF一起上传，生成一份报告"
 
-## 自然语言 → NotebookLM 功能映射
+## 自然语言 → 委托动作映射
 
-| 用户说的话 | 识别意图 | NotebookLM 命令 |
-|-----------|---------|----------------|
-| "生成播客" / "做成音频" / "转成语音" | audio | `generate audio` |
-| "做成PPT" / "生成幻灯片" / "做个演示" | slide-deck | `generate slide-deck` |
-| "画个思维导图" / "生成脑图" / "做个导图" | mind-map | `generate mind-map` |
-| "生成Quiz" / "出题" / "做个测验" | quiz | `generate quiz` |
-| "做个视频" / "生成视频" | video | `generate video` |
-| "生成报告" / "写个总结" / "整理成文档" | report | `generate report` |
-| "做个信息图" / "可视化" | infographic | `generate infographic` |
-| "生成数据表" / "做个表格" | data-table | `generate data-table` |
-| "做成闪卡" / "生成记忆卡片" | flashcards | `generate flashcards` |
+| 用户说的话 | 识别意图 | 委托动作（由 `notebooklm` Skill 执行） |
+|-----------|---------|--------------------------------------|
+| "生成播客" / "做成音频" / "转成语音" | audio | generate-audio |
+| "做成PPT" / "生成幻灯片" / "做个演示" | slide-deck | generate-slide-deck |
+| "画个思维导图" / "生成脑图" / "做个导图" | mind-map | generate-mind-map |
+| "生成Quiz" / "出题" / "做个测验" | quiz | generate-quiz |
+| "做个视频" / "生成视频" | video | generate-video |
+| "生成报告" / "写个总结" / "整理成文档" | report | generate-report |
+| "做个信息图" / "可视化" | infographic | generate-infographic |
+| "生成数据表" / "做个表格" | data-table | generate-data-table |
+| "做成闪卡" / "生成记忆卡片" | flashcards | generate-flashcards |
 
 **如果没有明确指令**，默认只上传不生成任何内容，等待用户后续指令。
 
@@ -193,9 +195,8 @@ notebooklm list  # 验证认证成功
    ID: source-xyz-789
 
 💡 后续操作：
-   - 提问：notebooklm ask "总结这篇文章"
-   - 播客：notebooklm generate audio
-   - PPT：notebooklm generate slide-deck
+   - 默认继续使用本 Skill：直接说“基于这个 notebook 生成播客/PPT/Quiz”
+   - 高级模式：切换 `notebooklm` Skill，对该 notebook 进行精细控制
 ```
 
 **上传并生成**：
@@ -243,7 +244,7 @@ Claude 自动识别输入类型：
 - 保存为 TXT：`/tmp/weixin_{title}_{timestamp}.txt`
 
 **网页/YouTube**：
-- 直接使用 URL 调用 `notebooklm source add [URL]`
+- 保留原始 URL 作为 source 输入
 - NotebookLM 自动提取内容
 
 **Bilibili 视频**：
@@ -257,7 +258,7 @@ Claude 自动识别输入类型：
 - 保存为 TXT：`/tmp/{filename}_converted_{timestamp}.txt`
 
 **本地 Markdown**：
-- 直接上传：`notebooklm source add /path/to/file.md`
+- 作为本地文件 source 交给委托层上传
 
 **图片（OCR）**：
 - markitdown 自动 OCR 识别文字
@@ -282,35 +283,34 @@ Claude 自动识别输入类型：
 
 ### Step 3: 上传到 NotebookLM
 
-调用 `notebooklm` skill：
+委托 `notebooklm` Skill 执行：
+1. 创建 notebook（返回 notebook_id）
+2. 添加 source（文件或 URL）
+3. 等待 source 进入 READY 状态
+4. 将 notebook_id/source_id 回传给本 Skill 的后续步骤
 
-```bash
-notebooklm create "{title}"  # 创建新笔记本
-notebooklm source add /tmp/weixin_xxx.txt --wait  # 上传文件并等待处理完成
-```
-
-**等待处理完成很重要**，否则后续生成会失败。
+**等待 source READY 很重要**，否则后续生成可能失败。
 
 ### Step 5: 根据意图生成内容（可选）
 
-如果用户指定了处理意图，自动调用对应命令：
+如果用户指定了处理意图，自动委托 `notebooklm` Skill：
 
-| 意图 | 命令 | 等待 | 下载 |
-|------|------|------|------|
-| audio | `notebooklm generate audio` | `artifact wait` | `download audio ./output.mp3` |
-| slide-deck | `notebooklm generate slide-deck` | `artifact wait` | `download slide-deck ./output.pdf` |
-| mind-map | `notebooklm generate mind-map` | `artifact wait` | `download mind-map ./map.json` |
-| quiz | `notebooklm generate quiz` | `artifact wait` | `download quiz ./quiz.md --format markdown` |
-| video | `notebooklm generate video` | `artifact wait` | `download video ./output.mp4` |
-| report | `notebooklm generate report` | `artifact wait` | `download report ./report.md` |
-| infographic | `notebooklm generate infographic` | `artifact wait` | `download infographic ./infographic.png` |
-| flashcards | `notebooklm generate flashcards` | `artifact wait` | `download flashcards ./cards.md --format markdown` |
+| 意图 | 委托动作 | 产物类型 |
+|------|---------|---------|
+| audio | generate-audio | mp3 |
+| slide-deck | generate-slide-deck | pdf |
+| mind-map | generate-mind-map | json |
+| quiz | generate-quiz | markdown/json/html |
+| video | generate-video | mp4 |
+| report | generate-report | md |
+| infographic | generate-infographic | png |
+| flashcards | generate-flashcards | markdown/json/html |
 
 **生成流程**：
-1. 发起生成请求（返回 task_id）
-2. 等待生成完成（`artifact wait <task_id>`）
-3. 下载生成的文件到本地
-4. 告知用户文件路径
+1. 委托发起生成（返回任务/产物 ID）
+2. 委托等待完成
+3. 委托下载到本地
+4. 告知用户最终文件路径与大小
 
 ## 完整示例
 
@@ -489,19 +489,19 @@ notebooklm source add /tmp/weixin_xxx.txt --wait  # 上传文件并等待处理�
 ### 2. NotebookLM 认证失败
 - **错误**：Auth/cookie error
 - **原因**：认证过期或未登录
-- **解决**：运行 `notebooklm login` 重新登录
-- **验证**：`notebooklm status` 检查状态
+- **解决**：切换到 `notebooklm` Skill 执行认证修复流程（auth check/login）
+- **验证**：由 `notebooklm` Skill 返回认证状态
 
 ### 3. 文件上传失败
 - **错误**：Invalid file or upload error
 - **原因**：文件路径错误、权限问题、文件过大
-- **解决**：检查文件路径和权限
+- **解决**：本 Skill 先检查路径/权限/转换结果，再委托 `notebooklm` Skill 重试上传
 - **备选**：尝试转换为更小的文件
 
 ### 4. 生成任务失败
 - **错误**：Generation failed
 - **原因**：内容太短（<100字）、太长（>50万字）、服务异常
-- **解决**：检查内容长度，稍后重试
+- **解决**：由 `notebooklm` Skill 执行任务状态诊断与重试
 - **备选**：尝试其他格式（如报告代替播客）
 
 ### 5. MCP 工具未找到
@@ -577,9 +577,13 @@ Skill 会将要求作为 instructions 传给 NotebookLM。
 
 ## 相关 Skills
 
-- `notebooklm` - NotebookLM 核心功能
+- `notebooklm` - NotebookLM 执行层（高级用户可直接使用）
 - `notebooklm-deep-analyzer` - 深度分析 NotebookLM 内容
 - `markitdown` - 转换其他格式文档
+
+**默认策略**：
+- 对外默认使用 `anything-to-notebooklm`（统一入口）
+- 高级场景直用 `notebooklm`（精细控制）
 
 ## 配置 MCP（重要）
 
@@ -608,16 +612,9 @@ Skill 会将要求作为 instructions 传给 NotebookLM。
 ```bash
 # 测试 MCP 服务器
 python ~/.agents/skills/anything-to-notebooklm/wexin-read-mcp/src/server.py
-
-# 检查 NotebookLM 认证
-notebooklm status
-
-# 重新登录
-notebooklm login
-
-# 检查生成任务状态
-notebooklm artifact list
 ```
+
+NotebookLM 侧故障（认证、上传、生成、下载）统一委托 `notebooklm` Skill 处理，不在本 Skill 维护完整 CLI 排查手册。
 
 ## 典型使用场景
 
@@ -687,5 +684,5 @@ https://mp.weixin.qq.com/s/abc123
 ---
 
 **Skill 创建时间**：2026-01-25
-**最后更新**：2026-01-26
-**版本**：v1.1.0
+**最后更新**：2026-02-25
+**版本**：v1.2.0
